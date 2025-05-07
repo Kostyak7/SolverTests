@@ -1,0 +1,15 @@
+name: fenicsx_env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - fenics-dolfinx
+  - petsc4py
+  - pyvista
+  - numpy
+  - matplotlib
+  - scipy
+  - pandas
+  - jupyterlab
+  - ipykernel
+  - ffmpeg  # Для сохранения анимаций в PyVista

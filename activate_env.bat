@@ -1,0 +1,4 @@
+@echo on
+
+conda env create -f environment.yml
+conda activate fenicsx_env
