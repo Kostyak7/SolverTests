@@ -187,49 +187,81 @@ class HeatConductionTester:
         return u_next
     
     def compare_solutions(self, cpp_solution, dolfinx_solution, domain):
-        """Compare solutions and visualize"""
-        # Get dolfinx solution at nodes
-        dolfinx_values = dolfinx_solution.x.array
+        """Сравнение решений C++ и FEniCS с визуализацией"""
+        try:
+            # Преобразуем решение C++ в numpy array
+            cpp_array = cpp_solution # np.array(cpp_solution, dtype=np.float64)
+            
+            # Получаем массив значений из dolfinx решения
+            if hasattr(dolfinx_solution, 'x'):  # Для dolfinx.fem.Function
+                dolfinx_array = dolfinx_solution.x.array
+            elif isinstance(dolfinx_solution, (np.ndarray, list)):
+                dolfinx_array = np.array(dolfinx_solution)
+            else:
+                raise TypeError("Неподдерживаемый тип dolfinx_solution")
+            
+            # Проверка размеров
+            if cpp_array.shape != dolfinx_array.shape:
+                raise ValueError(
+                    f"Размеры массивов не совпадают: C++ {cpp_array.shape} vs FEniCS {dolfinx_array.shape}"
+                )
+            
+            # Вычисление ошибки
+            error = np.abs(cpp_array - dolfinx_array)
+            max_error = np.max(error)
+            avg_error = np.mean(error)
+            
+            print(f"\nРезультаты сравнения:")
+            print(f"- Максимальная ошибка: {max_error:.4e}")
+            print(f"- Средняя ошибка: {avg_error:.4e}")
+            print(f"- Минимальное значение C++: {np.min(cpp_array):.2f}")
+            print(f"- Максимальное значение C++: {np.max(cpp_array):.2f}")
+            print(f"- Минимальное значение FEniCS: {np.min(dolfinx_array):.2f}")
+            print(f"- Максимальное значение FEniCS: {np.max(dolfinx_array):.2f}")
+            
+            # Визуализация
+            self._plot_comparison(domain, cpp_array, dolfinx_array, error)
+            
+            return max_error, avg_error
         
-        # Calculate error
-        error = np.abs(cpp_solution - dolfinx_values)
-        max_error = np.max(error)
-        avg_error = np.mean(error)
-        
-        print(f"Max error: {max_error:.2e}")
-        print(f"Average error: {avg_error:.2e}")
-        
-        # Visualize
-        xvfb.start_xvfb(wait=0.05)
-        pyvista.set_jupyter_backend("static")
-        
-        # Create pyvista mesh
-        topology, cell_types, geometry = dolfinx.plot.vtk_mesh(domain, domain.topology.dim)
-        grid = pyvista.UnstructuredGrid(topology, cell_types, geometry)
-        
-        # Add data
-        grid.point_data["CPP Solution"] = cpp_solution
-        grid.point_data["FEniCS Solution"] = dolfinx_values
-        grid.point_data["Error"] = error
-        
-        # Plot
-        plotter = pyvista.Plotter(shape=(1, 3))
-        
-        plotter.subplot(0, 0)
-        plotter.add_text("CPP Solution")
-        plotter.add_mesh(grid, scalars="CPP Solution")
-        
-        plotter.subplot(0, 1)
-        plotter.add_text("FEniCS Solution")
-        plotter.add_mesh(grid, scalars="FEniCS Solution")
-        
-        plotter.subplot(0, 2)
-        plotter.add_text("Error")
-        plotter.add_mesh(grid, scalars="Error")
-        
-        plotter.show()
-        
-        return max_error, avg_error
+        except Exception as e:
+            print(f"\nОшибка при сравнении решений: {str(e)}")
+            print(f"Тип cpp_solution: {type(cpp_solution)}")
+            print(f"Тип dolfinx_solution: {type(dolfinx_solution)}")
+            raise
+
+    def _plot_comparison(self, domain, cpp_array, dolfinx_array, error):
+        """Вспомогательная функция для визуализации"""
+        try:
+            xvfb.start_xvfb(wait=0.05)
+            pyvista.set_jupyter_backend("static")
+            
+            topology, cell_types, geometry = dolfinx.plot.vtk_mesh(domain, domain.topology.dim)
+            grid = pyvista.UnstructuredGrid(topology, cell_types, geometry)
+            
+            grid.point_data["Решение C++"] = cpp_array
+            grid.point_data["Решение FEniCS"] = dolfinx_array
+            grid.point_data["Ошибка"] = error
+            
+            plotter = pyvista.Plotter(shape=(1, 3))
+            
+            plotter.subplot(0, 0)
+            plotter.add_text("Решение C++")
+            plotter.add_mesh(grid, scalars="Решение C++", clim=[min(cpp_array.min(), dolfinx_array.min()), 
+                            max(cpp_array.max(), dolfinx_array.max())])
+            
+            plotter.subplot(0, 1)
+            plotter.add_text("Решение FEniCS")
+            plotter.add_mesh(grid, scalars="Решение FEniCS", clim=[min(cpp_array.min(), dolfinx_array.min()), 
+                            max(cpp_array.max(), dolfinx_array.max())])
+            
+            plotter.subplot(0, 2)
+            plotter.add_text("Ошибка")
+            plotter.add_mesh(grid, scalars="Ошибка")
+            
+            plotter.show()
+        except Exception as e:
+            print(f"Ошибка при визуализации: {str(e)}")
 
 
 def test_case_1_dirichlet_bc():
